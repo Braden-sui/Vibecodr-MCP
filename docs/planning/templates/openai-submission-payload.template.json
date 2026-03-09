@@ -1,0 +1,64 @@
+{
+  "app": {
+    "name": "Vibecodr Upload Assistant",
+    "short_description": "Import and publish vibecoded creations from Codex and ChatGPT into vibecodr.",
+    "long_description": "This app helps creators ingest project files, validate metadata, compile drafts, and publish runnable artifacts to vibecodr.",
+    "category": "Developer Tools",
+    "company_name": "REPLACE_ME",
+    "company_website": "https://REPLACE_ME",
+    "support_email": "support@REPLACE_ME",
+    "privacy_policy_url": "https://REPLACE_ME/privacy",
+    "terms_url": "https://REPLACE_ME/terms"
+  },
+  "deployment": {
+    "production_mcp_url": "https://REPLACE_ME/mcp",
+    "widget_domain": "https://REPLACE_ME",
+    "health_check_url": "https://REPLACE_ME/health"
+  },
+  "auth": {
+    "security_schemes": [
+      {
+        "type": "oauth2",
+        "description": "OAuth sign-in to vibecodr account"
+      }
+    ],
+    "account_link_required": true
+  },
+  "tools": [
+    "get_upload_capabilities",
+    "start_creation_import",
+    "get_import_operation",
+    "compile_draft_capsule",
+    "publish_draft_capsule",
+    "cancel_import_operation"
+  ],
+  "csp": {
+    "connect_domains": [
+      "https://api.vibecodr.space"
+    ],
+    "resource_domains": [
+      "https://REPLACE_ME"
+    ]
+  },
+  "review_assets": {
+    "screenshots": [
+      "assets/screenshots/home.png",
+      "assets/screenshots/import-progress.png",
+      "assets/screenshots/publish-success.png"
+    ],
+    "test_prompts": [
+      {
+        "prompt": "Import my codex_v1 package and show draft status.",
+        "expected_result": "Operation created and draft capsuleId returned."
+      },
+      {
+        "prompt": "Compile and publish capsule <id>.",
+        "expected_result": "Compile and publish statuses returned with artifact URL."
+      }
+    ]
+  },
+  "safety": {
+    "data_handling_summary": "No raw secrets logged, file payloads validated, strict path policy enforced.",
+    "abuse_controls": "Rate limiting, idempotency, auth checks, operation audit logs."
+  }
+}

@@ -1,0 +1,36 @@
+services:
+  - type: web
+    name: vibecodr-openai-app
+    runtime: docker
+    plan: starter
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: "8787"
+      - key: APP_BASE_URL
+        sync: false
+      - key: VIBECDR_API_BASE
+        sync: false
+      - key: SESSION_SIGNING_KEY
+        sync: false
+      - key: COOKIE_SECURE
+        value: "true"
+      - key: OAUTH_PROVIDER_NAME
+        value: clerk
+      - key: OAUTH_CLIENT_ID
+        sync: false
+      - key: OAUTH_CLIENT_SECRET
+        sync: false
+      # Recommended discovery mode
+      - key: OAUTH_ISSUER_URL
+        sync: false
+      - key: OAUTH_DISCOVERY_URL
+        sync: false
+      # Optional explicit endpoint override
+      - key: OAUTH_AUTHORIZATION_URL
+        sync: false
+      - key: OAUTH_TOKEN_URL
+        sync: false
+

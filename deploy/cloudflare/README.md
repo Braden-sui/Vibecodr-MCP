@@ -1,0 +1,113 @@
+# Cloudflare Deployment: Vibecodr OpenAI Gateway Worker
+
+This repo now includes a real Cloudflare Worker runtime at `src/worker.ts` and a ready-to-fill Wrangler config at:
+
+- `deploy/cloudflare/wrangler.gateway.toml.example`
+
+## Architecture
+
+- Public Worker: `vibecodr-openai-gateway`
+  - Hosts OAuth endpoints, widget, MCP endpoint, auth session APIs
+  - Runs on `openai.vibecodr.space`
+- Internal Vibecodr API Worker: `vibecodr-api`
+  - Invoked through Cloudflare Service Binding `VIBE_API`
+  - Not required to be publicly exposed for gateway-to-api communication
+- KV namespace: `OPERATIONS_KV`
+  - Stores import operation state/idempotency in Worker runtime
+- Worker Rate Limiting bindings:
+  - `GLOBAL_RATE_LIMITER` and `MCP_RATE_LIMITER`
+  - Enforced by Cloudflare runtime (cross-isolate), with app-memory fallback for local Node runtime
+
+## One-time setup
+
+1. Authenticate Wrangler:
+- `npx wrangler whoami`
+
+2. Create KV namespaces:
+- `npx wrangler kv namespace create OPERATIONS_KV`
+- `npx wrangler kv namespace create OPERATIONS_KV --preview`
+
+3. Copy `deploy/cloudflare/wrangler.gateway.toml.example` to `deploy/cloudflare/wrangler.gateway.toml`, then paste namespace IDs into:
+- `deploy/cloudflare/wrangler.gateway.toml`
+  - `[[kv_namespaces]].id`
+  - `[[kv_namespaces]].preview_id`
+
+4. Ensure service binding target exists:
+- Worker service name in config must match your internal API worker:
+  - `[[services]].service = "vibecodr-api"`
+
+5. Set ratelimit namespace IDs in Wrangler config:
+- `[[ratelimits]].namespace_id` must be unique per account (string/number)
+- Example values in repo: `41001` (global), `41002` (mcp)
+
+6. Set secrets:
+- `npx wrangler secret put SESSION_SIGNING_KEY`
+- `npx wrangler secret put OAUTH_CLIENT_SECRET`
+
+You can automate secret upload from your local secret env file:
+- `./deploy/cloudflare/set-secrets.ps1`
+- `./deploy/cloudflare/set-secrets.ps1 -SecretsFile deploy/cloudflare/secrets.local.env`
+
+Recommended local secret file workflow:
+- copy `deploy/cloudflare/secrets.local.env.example` to `deploy/cloudflare/secrets.local.env`
+- keep `deploy/cloudflare/secrets.local.env` out of Git
+
+6. Ensure DNS record exists and is proxied:
+- Name: `openai`
+- Type: `CNAME`
+- Target: `vibecodr-openai-gateway.braden-yig.workers.dev`
+- Proxy status: Proxied (orange cloud)
+
+## Configure OAuth and domain
+
+Set in your local `deploy/cloudflare/wrangler.gateway.toml`:
+
+- `APP_BASE_URL=https://openai.vibecodr.space`
+- `OAUTH_CLIENT_ID=<clerk client id>`
+- `OAUTH_ISSUER_URL=https://clerk.vibecodr.space`
+- `OAUTH_SCOPES=openid profile email offline_access`
+- `MAX_REQUEST_BODY_BYTES=1500000`
+- `RATE_LIMIT_WINDOW_SECONDS=60`
+- `RATE_LIMIT_REQUESTS_PER_WINDOW=240`
+- `RATE_LIMIT_MCP_REQUESTS_PER_WINDOW=120`
+- `[[ratelimits]]` limits should match these values in production for deterministic behavior
+
+In Clerk OAuth app:
+
+- Redirect URI:
+  - `https://openai.vibecodr.space/auth/callback`
+- Keep:
+  - Dynamic client registration: OFF
+  - JWT access tokens: OFF (unless your API specifically requires JWTs)
+
+## Deploy commands
+
+Local worker dev:
+- `npm run dev:worker`
+
+Deploy:
+- `npm run deploy:gateway`
+
+## Verification checklist
+
+After deploy, verify:
+
+- `GET /health` returns 200
+- `GET /auth/start` redirects to Clerk
+- OAuth callback sets `vc_session` cookie and redirects to `/widget`
+- `GET /api/auth/session` returns `authenticated: true` after login
+- `POST /mcp` responds to:
+  - `initialize`
+  - `tools/list`
+  - `tools/call`
+- oversize request returns `413 REQUEST_BODY_TOO_LARGE`
+- rate-limit breaches return `429 RATE_LIMITED`
+- error responses include `traceId` and `x-trace-id`
+- for rate-limit load checks, reuse a persistent HTTP session/cookie jar so repeated requests map to one client key
+
+## Security notes
+
+- Keep `SESSION_SIGNING_KEY` and `OAUTH_CLIENT_SECRET` in Wrangler secrets only.
+- Keep `COOKIE_SECURE=true` in production.
+- Keep `ALLOW_MANUAL_TOKEN_LINK=false` in production.
+- Rotate OAuth client secret if it has ever been shared in plaintext.

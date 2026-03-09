@@ -1,0 +1,151 @@
+version: 1
+app_id: vibecodr-upload-app
+tools:
+  - name: get_upload_capabilities
+    title: Get Upload Capabilities
+    description: Returns supported source types, limits, and ingest options.
+    annotations:
+      readOnlyHint: true
+      destructiveHint: false
+      openWorldHint: false
+    input_schema:
+      type: object
+      properties: {}
+      additionalProperties: false
+    output_schema:
+      type: object
+      properties:
+        sourceTypes:
+          type: array
+          items:
+            type: string
+        maxFileCount:
+          type: integer
+        maxTotalBytes:
+          type: integer
+        supportedRunners:
+          type: array
+          items:
+            type: string
+
+  - name: start_creation_import
+    title: Start Creation Import
+    description: Starts an import operation for a Codex or ChatGPT creation package.
+    annotations:
+      readOnlyHint: false
+      destructiveHint: false
+      openWorldHint: true
+    input_schema:
+      type: object
+      required:
+        - sourceType
+      properties:
+        sourceType:
+          type: string
+          enum: [codex_v1, chatgpt_v1]
+        payloadRef:
+          type: string
+        title:
+          type: string
+        runner:
+          type: string
+          enum: [client-static, webcontainer]
+        entry:
+          type: string
+        idempotencyKey:
+          type: string
+    output_schema:
+      type: object
+      properties:
+        operationId:
+          type: string
+        capsuleId:
+          type: string
+        status:
+          type: string
+        diagnostics:
+          type: array
+          items:
+            type: object
+
+  - name: get_import_operation
+    title: Get Import Operation
+    description: Returns status and diagnostics for an import operation.
+    annotations:
+      readOnlyHint: true
+      destructiveHint: false
+      openWorldHint: false
+    input_schema:
+      type: object
+      required:
+        - operationId
+      properties:
+        operationId:
+          type: string
+    output_schema:
+      type: object
+      properties:
+        operationId:
+          type: string
+        status:
+          type: string
+        currentStage:
+          type: string
+        capsuleId:
+          type: string
+        diagnostics:
+          type: array
+          items:
+            type: object
+
+  - name: compile_draft_capsule
+    title: Compile Draft Capsule
+    description: Compiles the draft capsule before publish.
+    annotations:
+      readOnlyHint: false
+      destructiveHint: false
+      openWorldHint: false
+    input_schema:
+      type: object
+      required:
+        - capsuleId
+      properties:
+        capsuleId:
+          type: string
+    output_schema:
+      type: object
+      properties:
+        capsuleId:
+          type: string
+        compileStatus:
+          type: string
+        diagnostics:
+          type: array
+          items:
+            type: object
+
+  - name: publish_draft_capsule
+    title: Publish Draft Capsule
+    description: Publishes a compiled draft capsule to a public vibecodr artifact.
+    annotations:
+      readOnlyHint: false
+      destructiveHint: true
+      openWorldHint: false
+    input_schema:
+      type: object
+      required:
+        - capsuleId
+      properties:
+        capsuleId:
+          type: string
+    output_schema:
+      type: object
+      properties:
+        capsuleId:
+          type: string
+        publishStatus:
+          type: string
+        artifactUrl:
+          type: string
+        postUrl:
+          type: string

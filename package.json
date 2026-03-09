@@ -1,0 +1,32 @@
+{
+  "name": "vibecodr-openai-app",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx src/server.ts",
+    "dev:worker": "npx wrangler dev --config deploy/cloudflare/wrangler.gateway.toml",
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/server.js",
+    "test:auth": "node --import tsx --test test/mcpOAuthCompat.test.ts",
+    "test:worker": "node --import tsx --test test/worker.test.ts",
+    "test": "node --import tsx --test test/*.test.ts",
+    "deploy:gateway": "npx wrangler deploy --config deploy/cloudflare/wrangler.gateway.toml",
+    "check": "tsc -p tsconfig.json --noEmit",
+    "transport:regression": "npm run build && node scripts/mcp-transport-regression.mjs",
+    "mcp:tools": "node scripts/list-mcp-tools.mjs",
+    "validate:env": "node scripts/validate-env.mjs",
+    "package:submission": "node scripts/package-submission.mjs",
+    "security:preflight": "node scripts/security-preflight.mjs",
+    "security:regression": "npm run build && node scripts/security-regression.mjs",
+    "verify": "npm run check && npm test && npm run transport:regression && npm run security:regression"
+  },
+  "dependencies": {
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.5",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2"
+  }
+}

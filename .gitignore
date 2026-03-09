@@ -1,0 +1,40 @@
+node_modules/
+dist/
+data/
+coverage/
+.wrangler/
+
+# Local environment and secret material
+.env
+.env.local
+.env.*
+!.env.example
+deploy/cloudflare/wrangler.gateway.toml
+deploy/cloudflare/secrets.local.env
+
+# Internal agent scaffolding and local automation helpers
+.agent/
+.agents/
+.claude/
+.windsurf/
+skills/
+skills-lock.json
+.claude/
+.windsurf/
+skills/
+skills-lock.json
+
+# Public repo hygiene
+submission/screenshots/*
+!submission/screenshots/.gitkeep
+*.log
+*.tmp
+*.bak
+tmp-bash.txt
+
+# Editor / OS noise
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+

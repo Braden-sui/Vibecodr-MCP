@@ -1,0 +1,56 @@
+name = "vibecodr-openai-gateway"
+main = "../../src/worker.ts"
+compatibility_date = "2026-03-05"
+compatibility_flags = ["nodejs_compat"]
+
+[vars]
+APP_BASE_URL = "https://openai.vibecodr.space"
+VIBECDR_API_BASE = "https://api.vibecodr.space"
+OAUTH_PROVIDER_NAME = "clerk"
+OAUTH_CLIENT_ID = "replace_me"
+OAUTH_ISSUER_URL = "https://clerk.vibecodr.space"
+OAUTH_SCOPES = "openid profile email offline_access"
+COOKIE_SECURE = "true"
+ALLOW_MANUAL_TOKEN_LINK = "false"
+NODE_ENV = "production"
+MAX_REQUEST_BODY_BYTES = "8500000"
+RATE_LIMIT_WINDOW_SECONDS = "60"
+RATE_LIMIT_REQUESTS_PER_WINDOW = "240"
+RATE_LIMIT_MCP_REQUESTS_PER_WINDOW = "120"
+# Optional preregistered MCP client for an official public CLI.
+# Use https URLs or loopback http URLs; loopback redirect matching ignores only the port.
+# MCP_STATIC_CLIENT_ID = "replace_me"
+# MCP_STATIC_CLIENT_SECRET = "replace_me_if_confidential"
+# MCP_STATIC_CLIENT_REDIRECT_URIS = "http://127.0.0.1/oauth/callback/vibecodr,http://localhost/oauth/callback/vibecodr"
+
+[[kv_namespaces]]
+binding = "OPERATIONS_KV"
+id = "replace_with_kv_namespace_id"
+preview_id = "replace_with_kv_preview_namespace_id"
+
+[[durable_objects.bindings]]
+name = "AUTH_CODE_COORDINATOR"
+class_name = "AuthorizationCodeCoordinator"
+
+[[services]]
+binding = "VIBE_API"
+service = "vibecodr-api"
+
+[[ratelimits]]
+name = "GLOBAL_RATE_LIMITER"
+namespace_id = "replace_global_ratelimit_namespace_id"
+simple = { limit = 240, period = 60 }
+
+[[ratelimits]]
+name = "MCP_RATE_LIMITER"
+namespace_id = "replace_mcp_ratelimit_namespace_id"
+simple = { limit = 120, period = 60 }
+
+# Optional route example (recommended to configure in dashboard or with proper zone_id)
+# [[routes]]
+# pattern = "openai.vibecodr.space/*"
+# zone_name = "vibecodr.space"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["AuthorizationCodeCoordinator"]
