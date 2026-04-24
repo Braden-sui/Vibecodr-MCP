@@ -100,7 +100,7 @@ function zodFromJsonSchema(schema: unknown): ZodTypeAny {
   return z.unknown();
 }
 
-function zodObjectFromJsonSchema(schema: JsonSchemaRecord): z.AnyZodObject {
+function zodObjectFromJsonSchema(schema: JsonSchemaRecord): ZodTypeAny {
   const properties = isRecord(schema["properties"]) ? schema["properties"] : {};
   const required = Array.isArray(schema["required"])
     ? new Set(schema["required"].filter((value): value is string => typeof value === "string"))
@@ -167,7 +167,7 @@ function registerTools(sdkServer: McpServer, options: CreateVibecodrMcpServerOpt
     sdkServer.registerTool(
       tool.name,
       toolConfig,
-      async (args) => {
+      async (args: unknown) => {
         if (!options.req || !options.deps) return sdkUnavailableResult();
         const result = mode === "codemode"
           ? callCodeModeTool(options.req, options.deps, tool.name, args as Record<string, unknown>, options.session ?? null)

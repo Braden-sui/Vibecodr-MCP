@@ -29,7 +29,7 @@ const baseSchema = z.object({
   entry: z.string().min(1).optional(),
   files: z.array(fileSchema).default([]),
   importMode: z.enum(["direct_files", "zip_import", "github_import"]).default("direct_files"),
-  metadata: z.record(z.unknown()).optional(),
+  metadata: z.record(z.string(), z.unknown()).optional(),
   idempotencyKey: z.string().optional(),
   github: z.object({
     url: z.string().url(),
