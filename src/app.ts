@@ -26,7 +26,8 @@ import {
   handleGatewayMetadata,
   handleGatewayRegistration,
   handleGatewayRevoke,
-  handleGatewayToken
+  handleGatewayToken,
+  isGatewayOauthStateToken
 } from "./auth/mcpOAuthCompat.js";
 import { OAuthRefreshStore } from "./auth/oauthRefreshStore.js";
 import { SessionRevocationStore } from "./auth/sessionRevocationStore.js";
@@ -207,6 +208,70 @@ function jsonErrorResponse(
     status,
     { error, message, traceId, ...(body || {}) },
     { "x-trace-id": traceId, ...(headers || {}) }
+  );
+}
+
+function mcpOauthBrowserFailureResponse(): Response {
+  return htmlResponse(
+    400,
+    `<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>MCP sign-in could not be completed</title>
+    <style>
+      :root { color-scheme: light dark; }
+      body {
+        margin: 0;
+        font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        background: #101113;
+        color: #f5f5f2;
+      }
+      main {
+        min-height: 100vh;
+        box-sizing: border-box;
+        display: grid;
+        align-content: center;
+        max-width: 680px;
+        margin: 0 auto;
+        padding: 32px 24px;
+      }
+      h1 {
+        margin: 0 0 16px;
+        font-size: clamp(28px, 6vw, 44px);
+        line-height: 1.05;
+        font-weight: 750;
+      }
+      p {
+        margin: 0 0 14px;
+        color: #d7d5ce;
+        font-size: 17px;
+        line-height: 1.6;
+      }
+      .status {
+        width: fit-content;
+        margin-bottom: 18px;
+        padding: 6px 10px;
+        border: 1px solid #55514a;
+        border-radius: 6px;
+        color: #f2c97d;
+        font-size: 13px;
+        letter-spacing: 0;
+        text-transform: uppercase;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <div class="status">Sign-in expired</div>
+      <h1>MCP sign-in could not be completed</h1>
+      <p>This sign-in link expired, was already used, or was created for a different browser session.</p>
+      <p>Return to your MCP client and start the sign-in flow again. You can close this tab.</p>
+    </main>
+  </body>
+</html>`,
+    { "cache-control": "no-store" }
   );
 }
 
@@ -480,6 +545,7 @@ export function createAppRequestHandler(deps: AppRuntimeDeps): AppRequestHandler
     /^\/(auth\/callback|oauth_callback)$/,
     async (_req, url) => {
       const traceId = _req.headers.get("x-trace-id") || undefined;
+      const state = url.searchParams.get("state") || "";
       const genericResponse = await handleGatewayCallback(
         url,
         config,
@@ -488,6 +554,18 @@ export function createAppRequestHandler(deps: AppRuntimeDeps): AppRequestHandler
         oauthFetch
       );
       if (genericResponse) return genericResponse;
+      if (isGatewayOauthStateToken(state)) {
+        telemetry.auth({
+          traceId,
+          event: "mcp_oauth_callback",
+          outcome: "failure",
+          provider: config.oauth.providerName,
+          endpoint: "/auth/callback",
+          errorCode: "INVALID_GATEWAY_OAUTH_STATE",
+          details: { reason: "expired_replayed_or_invalid_gateway_state" }
+        });
+        return mcpOauthBrowserFailureResponse();
+      }
       return oauthCallbackResponse({
         reqUrl: url,
         cfg: config,

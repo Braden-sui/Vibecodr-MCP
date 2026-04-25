@@ -35,6 +35,10 @@ Before testing protected tools in any client:
    - \`What can my Vibecodr account do right now?\`
    - \`List my live vibes.\`
 
+Successful MCP OAuth normally finishes in the MCP client, not on the gateway callback URL. After Clerk sign-in, the gateway exchanges the upstream authorization code, issues a gateway code, and redirects to the client's registered callback. ChatGPT, Codex, Cursor, VS Code, Windsurf, or another client should then show the server as connected or allow protected tools to run.
+
+If the browser remains on `https://openai.vibecodr.space/auth/callback` or `/oauth_callback`, that callback was not accepted as a current MCP OAuth handoff. The gateway shows a human-readable failure page for expired, replayed, or invalid MCP callback state. Close that tab, return to the MCP client, and start the sign-in flow again.
+
 If you want to inspect the command surface directly from CLI instead of waiting for an agent UI to infer it:
 - run `initialize`
 - then run `tools/list`

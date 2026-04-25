@@ -631,6 +631,10 @@ export class GenericOauthRequestStateStore {
   }
 }
 
+export function isGatewayOauthStateToken(stateToken: string): boolean {
+  return stateToken.startsWith("vcgs.");
+}
+
 export class AuthorizationCodeStore {
   private readonly mem = new Map<string, AuthorizationCodeRecord>();
   private readonly coordinator?: AuthorizationCodeCoordinatorClient<AuthorizationCodeRecord> | undefined;
