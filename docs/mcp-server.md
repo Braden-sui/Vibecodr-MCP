@@ -43,6 +43,8 @@ The gateway acts as the MCP-facing OAuth compatibility layer for generic MCP cli
 
 This removes the need for manual token entry in remote MCP clients.
 
+On a successful MCP OAuth flow, users usually do not end on a Vibecodr gateway success page. The final visible confirmation belongs to the MCP client because the gateway redirects to the client's registered callback after issuing the gateway authorization code. If a browser lands on `/auth/callback` or `/oauth_callback` with expired, replayed, or invalid MCP callback state, the gateway returns a no-store HTML page that tells the user to close the tab and restart sign-in from the client.
+
 Do not confuse the two auth entrypoints:
 - `/authorize` is the MCP OAuth entrypoint and is the correct path for Codex, Cursor, VS Code, Windsurf, and other remote MCP clients
 - `/auth/start` is the browser login entrypoint and normally returns to `/`

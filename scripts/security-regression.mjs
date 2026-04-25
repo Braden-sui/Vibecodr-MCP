@@ -474,6 +474,23 @@ async function main() {
       assert.equal(invalidCallback.json?.error, "Invalid or expired OAuth state");
     }
 
+    const invalidGatewayCallback = await fetchJson(
+      baseUrl,
+      jar,
+      "/oauth_callback?code=provider-code&state=vcgs.invalid.signature"
+    );
+    assert.equal(invalidGatewayCallback.res.status, 400, "Expected invalid gateway state failure");
+    assert.match(
+      invalidGatewayCallback.res.headers.get("content-type") || "",
+      /text\/html/,
+      "Expected invalid gateway state to render a browser-safe page"
+    );
+    assert.equal(invalidGatewayCallback.json, undefined, "Expected no JSON pretty-print surface for invalid gateway state");
+    assert.match(invalidGatewayCallback.text, /MCP sign-in could not be completed/);
+    assert.match(invalidGatewayCallback.text, /start the sign-in flow again/);
+    assert.doesNotMatch(invalidGatewayCallback.text, /provider-code/);
+    assert.doesNotMatch(invalidGatewayCallback.text, /vcgs\.invalid\.signature/);
+
     const linked = await fetchJson(baseUrl, jar, "/api/auth/link", {
       method: "POST",
       headers: { "content-type": "application/json" },
@@ -541,6 +558,7 @@ async function main() {
             "gateway_bearer_authentication",
             "removed_widget_route",
             "oauth_auth_challenge",
+            "mcp_callback_browser_failure_page",
             "logout_revokes_copied_cookie",
             "oauth_failure_alerting",
             "structured_tool_errors",

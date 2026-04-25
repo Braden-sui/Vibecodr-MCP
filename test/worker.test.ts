@@ -143,6 +143,24 @@ test("production worker initialize responds with the current MCP protocol versio
   assert.match(body.result?.instructions || "", /confirmed: true/);
 });
 
+test("production worker renders an MCP browser callback failure page for invalid gateway state", async () => {
+  const response = await worker.fetch(
+    new Request("https://openai.vibecodr.space/auth/callback?code=provider-code&state=vcgs.invalid.signature"),
+    productionEnv()
+  );
+
+  assert.equal(response.status, 400);
+  assert.match(response.headers.get("content-type") || "", /text\/html/);
+  assert.equal(response.headers.get("cache-control"), "no-store");
+
+  const body = await response.text();
+  assert.match(body, /MCP sign-in could not be completed/);
+  assert.match(body, /start the sign-in flow again/);
+  assert.match(body, /You can close this tab/);
+  assert.doesNotMatch(body, /provider-code/);
+  assert.doesNotMatch(body, /vcgs\.invalid\.signature/);
+});
+
 test("production worker does not expose widget resources or widget metadata", async () => {
   const initialize = await worker.fetch(
     new Request("https://openai.vibecodr.space/mcp", {
