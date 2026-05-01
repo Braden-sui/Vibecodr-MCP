@@ -271,6 +271,11 @@ test("pulse setup guidance exposes normalized descriptor metadata", async () => 
       String.raw`_Binding\b|__VC_STATE_GATEWAY|DurableObjectNamespace|grant header|raw grant|Cloudflare account|Stripe price|delete_pulse|listClaims|raw claim`
   );
   assert.doesNotMatch(JSON.stringify(structured), staleBindingPattern);
+  assert.doesNotMatch(JSON.stringify(structured), /future state|state placeholder/i);
+  assert.match(
+    JSON.stringify(structured),
+    /descriptor-declared Pulse State coordination resources/
+  );
 });
 
 test("pulse setup guidance derives active setup guidance from descriptor setup", async () => {
@@ -327,6 +332,8 @@ test("pulse setup guidance derives active setup guidance from descriptor setup",
   assert.deepEqual(backendStructured.descriptorMetadata?.activeSetupTaskKinds, ["secret", "raw_body", "state"]);
   assert.equal(backendStructured.descriptorMetadata?.requiresBackendSetup, true);
   assert.match(backendStructured.whenYouNeedPulses?.join(" ") || "", /secret.*raw body.*state/i);
+  assert.doesNotMatch(JSON.stringify(backendStructured), /future state|state placeholder/i);
+  assert.match(JSON.stringify(backendStructured), /Pulse State coordination resources/);
   assert.deepEqual(backendStructured.descriptorEvaluation?.warnings, ["State setup is provisioned during deploy."]);
 });
 

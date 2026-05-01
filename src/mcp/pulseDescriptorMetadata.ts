@@ -121,7 +121,7 @@ export function buildPulseSetupGuidance(input?: { descriptorSetup?: unknown }): 
     pulseBestPractices: [
       "Keep the pulse surface narrow and name exactly what the backend action does.",
       "Pass only the minimum data from the vibe into the pulse.",
-      "Use descriptor setup tasks for pulse values, policy-bound secrets, connections, raw body, and state placeholders.",
+      "Use descriptor setup tasks for pulse values, policy-bound secrets, connections, raw body, and descriptor-declared Pulse State coordination resources.",
       ...descriptorEvaluation.setupTasks.map((task) => formatSetupTaskPractice(task)),
       "Use env.fetch with env.secrets.bearer/header/query, env.webhooks.verify(\"stripe\") for the first provider helper, env.secrets.verifyHmac with github-sha256, shopify-hmac-sha256, or slack-v0 format presets for non-Stripe signed webhooks until helpers have fixtures, env.connections.use(provider).fetch, structured logging, sanitized requests, safe runtime correlation ids, and best-effort waitUntil language.",
       "Check account capabilities before promising additional pulses or private pulses."
@@ -274,12 +274,12 @@ function buildPulseEscalationGuidance(evaluation: PulseDescriptorSetupEvaluation
   if (evaluation.guidanceSource === "descriptor_setup" && evaluation.requiresBackendSetup) {
     return [
       `The descriptor declares ${formatSetupTaskKinds(evaluation.activeSetupTaskKinds)} setup tasks.`,
-      "Use only those descriptor-derived setup tasks when explaining policy-bound secrets, raw body handling, future state placeholders, connections, env values, or database guidance.",
+      "Use only those descriptor-derived setup tasks when explaining policy-bound secrets, raw body handling, descriptor-declared Pulse State coordination resources, connections, env values, or database guidance.",
       "Check account capabilities before promising additional pulses or private pulses."
     ];
   }
   return [
-    "The descriptor declares pulse values, secrets, connections, raw body handling, or future state resources.",
+    "The descriptor declares pulse values, secrets, connections, raw body handling, or descriptor-declared Pulse State coordination resources.",
     "The app needs policy-bound provider credentials, signed requests, Stripe webhook verification, scheduled work, or trusted side effects.",
     "The product requirement cannot safely run as browser-only vibe code."
   ];
