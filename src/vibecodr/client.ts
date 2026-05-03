@@ -9,6 +9,8 @@ import type {
   RunnerType,
   SocialProfileSummary,
   SocialSearchResult,
+  StandalonePulsePublishInput,
+  StandalonePulsePublishResult,
   VibecodrQuotaSummary,
   VibeEngagementSummary,
   VibeShareSummary,
@@ -438,6 +440,68 @@ export class VibecodrClient {
           : {})
       },
       recommendations
+    };
+  }
+
+  async publishStandalonePulse(
+    ctx: VibeClientUserContext,
+    input: StandalonePulsePublishInput,
+    meta?: UpstreamRequestMeta
+  ): Promise<StandalonePulsePublishResult> {
+    const visibility = input.visibility || "private";
+    const body: Record<string, unknown> = {
+      name: input.name,
+      code: input.code,
+      visibility
+    };
+    if (input.descriptor) body["descriptor"] = input.descriptor;
+    if (input.slug) body["slug"] = input.slug;
+
+    const data = await this.req("POST", "/pulses", ctx, {
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(body)
+    }, meta) as Record<string, unknown>;
+
+    const pulse = readRecord(data["pulse"]);
+    const pulseId = readString(pulse["id"]) || readString(pulse["pulseId"]) || "";
+    const name = readString(pulse["name"]) || input.name;
+    if (!pulseId) {
+      throw Object.assign(new Error("Standalone Pulse response missing pulse id"), {
+        code: "INVALID_STANDALONE_PULSE_RESPONSE"
+      });
+    }
+    const status = readString(pulse["status"]) || readString(data["status"]) || "deploying";
+    const deployStatus =
+      readString(pulse["wfpStatus"]) ||
+      readString(pulse["deployStatus"]) ||
+      readString(data["status"]) ||
+      "deploying";
+    const executeUrl = readString(pulse["executeUrl"]);
+    const warnings = Array.isArray(data["warnings"])
+      ? data["warnings"].filter((item): item is string => typeof item === "string")
+      : [];
+    const descriptorSetup = readRecord(data["descriptorSetup"]);
+
+    return {
+      pulse: {
+        pulseId,
+        name,
+        visibility: toVisibility(pulse["visibility"] ?? visibility),
+        status,
+        deployStatus,
+        ...(executeUrl ? { executeUrl } : {})
+      },
+      deploymentStatus: readString(data["status"]) || deployStatus,
+      message: readString(data["message"]) || "Your standalone Pulse is being deployed. It is usually ready in under a minute.",
+      warnings,
+      ...(Object.keys(descriptorSetup).length ? { descriptorSetup } : {}),
+      publicEndpointNotice:
+        "Pulse visibility controls source and metadata projection. Private visibility protects source metadata; it does not add authentication to the Pulse runtime URL. Add code-level auth checks if anonymous callers should be rejected.",
+      nextSteps: [
+        "Wait for deployment to finish before relying on the runtime URL.",
+        "Configure any descriptor setup tasks such as secrets, connections, raw body handling, or Pulse State resources before sending production traffic.",
+        "If the Pulse should reject anonymous callers, implement that check inside the Pulse code."
+      ]
     };
   }
 

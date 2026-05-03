@@ -29,6 +29,7 @@ import type {
   PublishSeoInput,
   PublishThumbnailUpload,
   SourceType,
+  StandalonePulsePublishInput,
   PublishVisibility,
   SessionRecord,
   VibeEngagementSummary
@@ -99,6 +100,9 @@ const ALLOWED_OPERATION_STATUSES = [
   "canceled"
 ] as const satisfies readonly OperationStatus[];
 const PUBLISH_VISIBILITY_VALUES = ["public", "unlisted", "private"] as const;
+const DEFAULT_STANDALONE_PULSE_VISIBILITY = "private" as const;
+const STANDALONE_PULSE_PUBLIC_ENDPOINT_NOTICE =
+  "Pulse visibility controls source and metadata projection. Private visibility protects source metadata; it does not add authentication to the Pulse runtime URL. Add code-level auth checks if anonymous callers should be rejected.";
 
 function humanizeOperationStatus(status: OperationStatus): string {
   switch (status) {
@@ -203,6 +207,47 @@ const CONFIRMED_WRITE_INPUT_SCHEMA = {
   type: "boolean",
   const: true,
   description: "Must be true only after the user explicitly confirms this write action in the conversation."
+} as const;
+
+const STANDALONE_PULSE_INPUT_SCHEMA = {
+  type: "object",
+  required: ["name", "code", "confirmed"],
+  properties: {
+    name: {
+      type: "string",
+      minLength: 1,
+      maxLength: 120,
+      description: "Human-readable Pulse name. Keep it short enough for creator dashboards."
+    },
+    code: {
+      type: "string",
+      minLength: 1,
+      maxLength: 120000,
+      description:
+        "Standalone Pulse source code. Do not include secrets in source; declare required secrets in descriptor setup and use policy-bound env.secrets helpers."
+    },
+    descriptor: {
+      type: "object",
+      description:
+        "Optional PulseDescriptor. When supplied, Vibecodr validates descriptor/source compatibility before writing or deploying the Pulse.",
+      additionalProperties: true
+    },
+    slug: {
+      type: "string",
+      minLength: 3,
+      maxLength: 50,
+      pattern: "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+      description: "Optional lowercase runtime slug using letters, numbers, and single hyphens."
+    },
+    visibility: {
+      type: "string",
+      enum: PUBLISH_VISIBILITY_VALUES,
+      description:
+        "Source and metadata visibility. Defaults to private for standalone Pulse publishes. Private visibility does not add runtime authentication to the Pulse URL."
+    },
+    confirmed: CONFIRMED_WRITE_INPUT_SCHEMA
+  },
+  additionalProperties: false
 } as const;
 
 const THUMBNAIL_FILE_INPUT_SCHEMA = {
@@ -743,6 +788,98 @@ function parseVisibilityArg(raw: unknown): PublishVisibility | undefined {
 
 function parseVisibilityWithDefault(raw: unknown): PublishVisibility {
   return parseVisibilityArg(raw) || "public";
+}
+
+function parseRequiredStringArg(raw: unknown, name: string, options?: { maxLength?: number }): string {
+  if (typeof raw !== "string") throw new Error(`${name} must be a string.`);
+  const value = raw.trim();
+  if (!value) throw new Error(`${name} is required.`);
+  if (options?.maxLength !== undefined && value.length > options.maxLength) {
+    throw new Error(`${name} must be ${options.maxLength} characters or fewer.`);
+  }
+  return value;
+}
+
+function parseOptionalObjectArg(raw: unknown, name: string): Record<string, unknown> | undefined {
+  if (raw === undefined) return undefined;
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
+    throw new Error(`${name} must be an object.`);
+  }
+  return raw as Record<string, unknown>;
+}
+
+function parseStandalonePulsePublishInput(args: Record<string, unknown>): StandalonePulsePublishInput {
+  const name = parseRequiredStringArg(args["name"], "name", { maxLength: 120 });
+  const code = parseRequiredStringArg(args["code"], "code", { maxLength: 120_000 });
+  const visibility = parseVisibilityArg(args["visibility"]) || DEFAULT_STANDALONE_PULSE_VISIBILITY;
+  const slug = typeof args["slug"] === "string" ? args["slug"].trim() : undefined;
+  const descriptor = parseOptionalObjectArg(args["descriptor"], "descriptor");
+  if (slug !== undefined && !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slug)) {
+    throw new Error("slug must use lowercase letters, numbers, and single hyphens.");
+  }
+  return {
+    name,
+    code,
+    ...(descriptor ? { descriptor } : {}),
+    ...(slug ? { slug } : {}),
+    visibility
+  };
+}
+
+function shapeStandalonePulsePublishResult(raw: unknown): Record<string, unknown> {
+  const source = raw && typeof raw === "object" && !Array.isArray(raw)
+    ? raw as Record<string, unknown>
+    : {};
+  const pulse = source["pulse"] && typeof source["pulse"] === "object" && !Array.isArray(source["pulse"])
+    ? source["pulse"] as Record<string, unknown>
+    : {};
+  const shapedPulse: Record<string, unknown> = {
+    pulseId: typeof pulse["pulseId"] === "string" ? pulse["pulseId"] : String(pulse["id"] || ""),
+    name: typeof pulse["name"] === "string" ? pulse["name"] : "Standalone Pulse",
+    visibility: parseVisibilityArg(pulse["visibility"]) || DEFAULT_STANDALONE_PULSE_VISIBILITY,
+    status: typeof pulse["status"] === "string" ? pulse["status"] : "deploying",
+    deployStatus:
+      typeof pulse["deployStatus"] === "string"
+        ? pulse["deployStatus"]
+        : typeof pulse["wfpStatus"] === "string"
+          ? pulse["wfpStatus"]
+          : typeof source["deploymentStatus"] === "string"
+            ? source["deploymentStatus"]
+            : "deploying"
+  };
+  if (typeof pulse["executeUrl"] === "string" && pulse["executeUrl"].trim()) {
+    shapedPulse["executeUrl"] = pulse["executeUrl"].trim();
+  }
+  const descriptorSetup =
+    source["descriptorSetup"] && typeof source["descriptorSetup"] === "object" && !Array.isArray(source["descriptorSetup"])
+      ? source["descriptorSetup"] as Record<string, unknown>
+      : undefined;
+  return {
+    pulse: shapedPulse,
+    deploymentStatus:
+      typeof source["deploymentStatus"] === "string"
+        ? source["deploymentStatus"]
+        : String(shapedPulse["deployStatus"]),
+    message:
+      typeof source["message"] === "string"
+        ? source["message"]
+        : "Your standalone Pulse is being deployed. It is usually ready in under a minute.",
+    warnings: Array.isArray(source["warnings"])
+      ? source["warnings"].filter((item): item is string => typeof item === "string")
+      : [],
+    ...(descriptorSetup ? { descriptorSetup } : {}),
+    publicEndpointNotice:
+      typeof source["publicEndpointNotice"] === "string"
+        ? source["publicEndpointNotice"]
+        : STANDALONE_PULSE_PUBLIC_ENDPOINT_NOTICE,
+    nextSteps: Array.isArray(source["nextSteps"]) && source["nextSteps"].every((item) => typeof item === "string")
+      ? source["nextSteps"]
+      : [
+          "Wait for deployment to finish before relying on the runtime URL.",
+          "Configure any descriptor setup tasks before sending production traffic.",
+          "If anonymous callers should be rejected, implement that check inside the Pulse code."
+        ]
+  };
 }
 
 function parseSourceTypeArg(raw: unknown): SourceType {
@@ -2405,6 +2542,38 @@ const TOOL_OUTPUT_SCHEMAS: Record<string, Record<string, unknown>> = {
       JSON_AUTH_CHALLENGE_SCHEMA
     ]
   },
+  publish_standalone_pulse: {
+    oneOf: [
+      {
+        type: "object",
+        required: ["pulse", "deploymentStatus", "message", "warnings", "publicEndpointNotice", "nextSteps"],
+        properties: {
+          pulse: {
+            type: "object",
+            required: ["pulseId", "name", "visibility", "status", "deployStatus"],
+            properties: {
+              pulseId: { type: "string" },
+              name: { type: "string" },
+              visibility: { type: "string", enum: PUBLISH_VISIBILITY_VALUES },
+              status: { type: "string" },
+              deployStatus: { type: "string" },
+              executeUrl: { type: "string" }
+            },
+            additionalProperties: false
+          },
+          deploymentStatus: { type: "string" },
+          message: { type: "string" },
+          warnings: { type: "array", items: { type: "string" } },
+          descriptorSetup: { type: "object", additionalProperties: true },
+          publicEndpointNotice: { type: "string" },
+          nextSteps: { type: "array", items: { type: "string" } }
+        },
+        additionalProperties: false
+      },
+      JSON_ERROR_SCHEMA,
+      JSON_AUTH_CHALLENGE_SCHEMA
+    ]
+  },
   publish_draft_capsule: {
     oneOf: [
       {
@@ -3047,6 +3216,26 @@ const ToolOutputValidators: Record<string, z.ZodTypeAny> = {
       }).optional()
     }),
     FeatureDisabledValidator,
+    ErrorStructuredValidator,
+    AuthChallengeValidator
+  ]),
+  publish_standalone_pulse: z.union([
+    z.object({
+      pulse: z.object({
+        pulseId: z.string(),
+        name: z.string(),
+        visibility: z.enum(PUBLISH_VISIBILITY_VALUES),
+        status: z.string(),
+        deployStatus: z.string(),
+        executeUrl: z.string().optional()
+      }),
+      deploymentStatus: z.string(),
+      message: z.string(),
+      warnings: z.array(z.string()),
+      descriptorSetup: z.object({}).passthrough().optional(),
+      publicEndpointNotice: z.string(),
+      nextSteps: z.array(z.string())
+    }),
     ErrorStructuredValidator,
     AuthChallengeValidator
   ]),
@@ -3749,6 +3938,18 @@ export function getTools(options?: { includeOutputSchema?: boolean; includeHidde
       _meta: toolMetaBase(OAUTH_SECURITY_SCHEMES)
     },
     {
+      name: "publish_standalone_pulse",
+      visibility: "public",
+      title: "Publish Standalone Pulse",
+      description:
+        "Use this only when the user wants to publish backend Pulse code by itself, without creating or publishing a frontend vibe. It creates one owner-scoped standalone Pulse through Vibecodr's /pulses API after explicit confirmation, checks account pulse capacity first, and returns a narrow publish result with no source echo, deploy token, worker name, packaging internals, or raw platform bindings. Ask for explicit confirmation before invoking it. Public, unlisted, and private are source/metadata visibility choices; private visibility does not add runtime authentication to the Pulse URL.",
+      securitySchemes: OAUTH_SECURITY_SCHEMES,
+      annotations: { readOnlyHint: false, destructiveHint: true, openWorldHint: true, idempotentHint: true },
+      inputSchema: STANDALONE_PULSE_INPUT_SCHEMA,
+      outputSchema: TOOL_OUTPUT_SCHEMAS["publish_standalone_pulse"],
+      _meta: toolMetaBase(OAUTH_SECURITY_SCHEMES)
+    },
+    {
       name: "publish_draft_capsule",
       visibility: "recovery",
       title: "Publish Draft Capsule",
@@ -4302,6 +4503,61 @@ async function callToolImpl(
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       return toolErrorResult("get_account_capabilities failed: " + message, "GET_ACCOUNT_CAPABILITIES_FAILED", message);
+    }
+  }
+
+  if (name === "publish_standalone_pulse") {
+    try {
+      const confirmationRequired = requireConfirmedWrite(name, "publishing this standalone Pulse", args);
+      if (confirmationRequired) return confirmationRequired;
+
+      const input = parseStandalonePulsePublishInput(args);
+      const ctx = { userId: session.userId, userHandle: session.userHandle, vibecodrToken: session.vibecodrToken };
+      const account = await deps.vibecodr.getAccountCapabilities(ctx, {
+        telemetry: deps.telemetry,
+        traceId,
+        userId: session.userId
+      });
+      if (!account.features.pulsesEnabled) {
+        return toolErrorResult(
+          "Standalone Pulse publish is not available on this Vibecodr account.",
+          "PULSES_DISABLED",
+          "This account does not currently have Pulse publishing enabled.",
+          {
+            nextStep: "Use a frontend-only vibe or upgrade before publishing backend Pulse code."
+          }
+        );
+      }
+      if (account.remaining.pulseSlots <= 0) {
+        return toolErrorResult(
+          "No Pulse slots are available on this Vibecodr account.",
+          "PULSE_SLOTS_FULL",
+          "This account has no remaining Pulse slots.",
+          {
+            nextStep: "Reuse an existing Pulse, archive one you no longer need, or upgrade before publishing another standalone Pulse."
+          }
+        );
+      }
+
+      const published = await deps.vibecodr.publishStandalonePulse(ctx, input, {
+        telemetry: deps.telemetry,
+        traceId,
+        userId: session.userId
+      });
+      const structuredContent = shapeStandalonePulsePublishResult(published);
+      const pulse = structuredContent["pulse"] as Record<string, unknown>;
+      return {
+        content: [{
+          type: "text",
+          text:
+            `Standalone Pulse ${pulse["name"]} is ${structuredContent["deploymentStatus"]}. ` +
+            STANDALONE_PULSE_PUBLIC_ENDPOINT_NOTICE
+        }],
+        structuredContent
+      };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      return toolErrorResult("publish_standalone_pulse failed: " + message, "PUBLISH_STANDALONE_PULSE_FAILED", message);
     }
   }
 

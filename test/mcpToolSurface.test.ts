@@ -87,11 +87,13 @@ async function resumeLatestRecommendation(deps: ToolDeps): Promise<RecommendedTo
 test("default tool list is product-shaped and excludes recovery-only failure explanation", () => {
   const visibleNames = getTools().map((tool) => tool.name);
   const quickPublish = getTools().find((tool) => tool.name === "quick_publish_creation");
+  const standalonePulsePublish = getTools().find((tool) => tool.name === "publish_standalone_pulse");
 
   assert.equal(visibleNames.includes("get_guided_publish_requirements"), true);
   assert.equal(visibleNames.includes("prepare_publish_package"), true);
   assert.equal(visibleNames.includes("validate_creation_payload"), true);
   assert.equal(visibleNames.includes("quick_publish_creation"), true);
+  assert.equal(visibleNames.includes("publish_standalone_pulse"), true);
   assert.equal(visibleNames.includes("get_runtime_readiness"), true);
   assert.equal(visibleNames.includes("resume_latest_publish_flow"), true);
   assert.equal(visibleNames.includes("discover_vibes"), true);
@@ -103,6 +105,9 @@ test("default tool list is product-shaped and excludes recovery-only failure exp
   assert.equal(visibleNames.includes("watch_operation"), false);
   assert.equal(visibleNames.includes("get_launch_best_practices"), true);
   assert.equal((quickPublish?.inputSchema.properties as Record<string, unknown> | undefined)?.["confirmed"] !== undefined, true);
+  assert.equal((standalonePulsePublish?.inputSchema.properties as Record<string, unknown> | undefined)?.["confirmed"] !== undefined, true);
+  assert.match(standalonePulsePublish?.inputSchema.properties?.visibility?.description || "", /defaults to private/i);
+  assert.match(standalonePulsePublish?.description || "", /private visibility does not add runtime authentication/i);
 });
 
 test("hidden-inclusive tool list preserves compatibility handlers", () => {
@@ -276,6 +281,151 @@ test("pulse setup guidance exposes normalized descriptor metadata", async () => 
     JSON.stringify(structured),
     /descriptor-declared Pulse State coordination resources/
   );
+});
+
+test("publish_standalone_pulse requires confirmation before creating a standalone Pulse", async () => {
+  const result = await callTool(
+    new Request("https://openai.vibecodr.space/mcp"),
+    resumeDeps([]),
+    "publish_standalone_pulse",
+    {
+      name: "Unconfirmed pulse",
+      code: "export default async function handler() { return Response.json({ ok: true }); }"
+    },
+    testSession
+  );
+
+  const structured = result.structuredContent as { error?: string; confirmationRequired?: boolean };
+  assert.equal(structured.error, "CONFIRMATION_REQUIRED");
+  assert.equal(structured.confirmationRequired, true);
+});
+
+test("publish_standalone_pulse checks account capability and returns a narrow model-safe publish result", async () => {
+  let capabilityChecked = false;
+  let publishedInput: Record<string, unknown> | undefined;
+  const deps = {
+    ...resumeDeps([]),
+    vibecodr: {
+      async getAccountCapabilities() {
+        capabilityChecked = true;
+        return {
+          profile: { id: testSession.userId, handle: "resume", plan: "creator" },
+          quota: {
+            plan: "creator",
+            usage: { storage: 0, runs: 0, bundleSize: 0, serverActionCount: 1, serverActionRuns: 0 },
+            limits: {
+              maxStorage: 1,
+              maxRuns: "unlimited",
+              maxPrivateVibes: 10,
+              maxConnections: 10,
+              serverActions: { maxActions: 5, maxRunsPerMonth: 100, maxRuntimeMs: 30000 },
+              pulses: {
+                maxActions: 3,
+                maxRunsPerMonth: 200,
+                maxRuntimeMs: 30000,
+                maxPrivatePulses: 3,
+                maxSubrequests: 50,
+                maxVanitySubdomains: 1,
+                proxyRateLimit: 60,
+                secretsProxyOwnerRateLimit: 60,
+                secretsProxyPulseRateLimit: 60
+              },
+              webhookActions: { maxActions: 2, maxCallsPerMonth: 50 },
+              features: {
+                customSeo: true,
+                serverActionsEnabled: true,
+                pulsesEnabled: true,
+                webhookActionsEnabled: true,
+                embedsUnbranded: false,
+                customDomains: 0,
+                d1SqlEnabled: true,
+                secretsStoreEnabled: true,
+                canPublishLibraryVibes: true,
+                advancedZipAnalysis: true,
+                studioParamsTab: true,
+                studioFilesTab: true
+              }
+            }
+          },
+          launchDefaults: {
+            visibility: "public",
+            shouldOfferCoverGeneration: true,
+            shouldOfferCustomSeo: true,
+            shouldOfferPulseGuidance: true
+          },
+          features: {
+            customSeo: true,
+            canUsePrivateOrUnlisted: true,
+            pulsesEnabled: true,
+            serverActionsEnabled: true,
+            webhookActionsEnabled: true
+          },
+          remaining: { pulseSlots: 2, pulseRunsThisMonth: 200, webhookCalls: 50 },
+          recommendations: []
+        };
+      },
+      async publishStandalonePulse(_ctx: unknown, input: Record<string, unknown>) {
+        publishedInput = input;
+        return {
+          pulse: {
+            pulseId: "pls_model_safe",
+            name: "Stripe webhook",
+            visibility: "private",
+            status: "deploying",
+            deployStatus: "deploying",
+            wfpWorkerName: "must-not-leak",
+            code: "must-not-leak"
+          },
+          deploymentStatus: "deploying",
+          message: "Your pulse is being deployed.",
+          warnings: ["Add STRIPE_WEBHOOK_SECRET before calling the webhook route."],
+          descriptorSetup: {
+            setupTasks: [{ kind: "secret", name: "STRIPE_WEBHOOK_SECRET" }],
+            compatibility: { blockers: [], warnings: [] }
+          },
+          packaging: { generatedModulePaths: ["index.js"] },
+          publicEndpointNotice: "Private visibility protects source metadata; it does not add authentication to the Pulse runtime URL.",
+          nextSteps: ["Wait for deployment to finish."]
+        };
+      }
+    }
+  } as unknown as ToolDeps;
+
+  const result = await callTool(
+    new Request("https://openai.vibecodr.space/mcp"),
+    deps,
+    "publish_standalone_pulse",
+    {
+      name: "Stripe webhook",
+      code: "export default async function POST() { return Response.json({ ok: true }); }",
+      descriptor: { apiVersion: "pulse/v1" },
+      confirmed: true
+    },
+    testSession
+  );
+
+  const structured = result.structuredContent as {
+    pulse?: { pulseId?: string; name?: string; visibility?: string; deployStatus?: string };
+    deploymentStatus?: string;
+    publicEndpointNotice?: string;
+  };
+  assert.equal(capabilityChecked, true);
+  assert.deepEqual(publishedInput, {
+    name: "Stripe webhook",
+    code: "export default async function POST() { return Response.json({ ok: true }); }",
+    descriptor: { apiVersion: "pulse/v1" },
+    visibility: "private"
+  });
+  assert.deepEqual(structured.pulse, {
+    pulseId: "pls_model_safe",
+    name: "Stripe webhook",
+    visibility: "private",
+    status: "deploying",
+    deployStatus: "deploying"
+  });
+  assert.equal(structured.deploymentStatus, "deploying");
+  assert.match(structured.publicEndpointNotice || "", /does not add authentication/i);
+  assert.doesNotMatch(JSON.stringify(result), /must-not-leak|wfpWorkerName|generatedModulePaths|packaging/);
 });
 
 test("pulse setup guidance derives active setup guidance from descriptor setup", async () => {

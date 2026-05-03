@@ -133,6 +133,73 @@ test("getAccountCapabilities no longer depends on /me/profile", async () => {
   assert.equal(account.quota.plan, "creator");
 });
 
+test("publishStandalonePulse posts to the standalone Pulse API and redacts raw deployment internals", async () => {
+  let requestedUrl = "";
+  let requestBody: Record<string, unknown> = {};
+  const client = new VibecodrClient(
+    "https://api.vibecodr.space",
+    async (input, init) => {
+      requestedUrl = String(input);
+      assert.equal(init?.method, "POST");
+      assert.equal((init?.headers as Record<string, string> | undefined)?.["content-type"], "application/json");
+      requestBody = JSON.parse(String(init?.body || "{}")) as Record<string, unknown>;
+      return new Response(
+        JSON.stringify({
+          pulse: {
+            id: "pls_safe",
+            name: "Safe webhook",
+            visibility: "private",
+            status: "deploying",
+            wfpStatus: "deploying",
+            wfpWorkerName: "internal-worker-name",
+            wfpVersion: 4,
+            executeUrl: null,
+            code: "export default { secret: true }"
+          },
+          status: "deploying",
+          message: "Your pulse is being deployed.",
+          packaging: {
+            entryPath: "inline://owner-pulse-source",
+            generatedModulePaths: ["index.js"]
+          },
+          descriptorSetup: {
+            setupTasks: [{ kind: "secret", name: "OPENAI_API_KEY" }],
+            compatibility: { blockers: [], warnings: [] }
+          }
+        }),
+        { status: 201, headers: { "content-type": "application/json" } }
+      );
+    }
+  );
+
+  const result = await client.publishStandalonePulse(userContext, {
+    name: "Safe webhook",
+    code: "export default async function POST() { return Response.json({ ok: true }); }",
+    descriptor: { apiVersion: "pulse/v1" },
+    slug: "safe-webhook"
+  });
+
+  assert.equal(new URL(requestedUrl).pathname, "/pulses");
+  assert.deepEqual(requestBody, {
+    name: "Safe webhook",
+    code: "export default async function POST() { return Response.json({ ok: true }); }",
+    descriptor: { apiVersion: "pulse/v1" },
+    visibility: "private",
+    slug: "safe-webhook"
+  });
+  assert.deepEqual(result.pulse, {
+    pulseId: "pls_safe",
+    name: "Safe webhook",
+    visibility: "private",
+    status: "deploying",
+    deployStatus: "deploying"
+  });
+  assert.equal(result.deploymentStatus, "deploying");
+  assert.match(result.publicEndpointNotice, /does not add authentication/i);
+  assert.equal(result.descriptorSetup && typeof result.descriptorSetup === "object", true);
+  assert.doesNotMatch(JSON.stringify(result), /internal-worker-name|wfpWorkerName|OPENAI_API_KEY.*secret true|owner-pulse-source|generatedModulePaths/);
+});
+
 test("discoverVibes reads the homepage latest feed lane", async () => {
   let requestedUrl = "";
   const client = new VibecodrClient(
