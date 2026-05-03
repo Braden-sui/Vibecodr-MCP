@@ -66,8 +66,9 @@ A fresh agent should start with product intent:
 1. Vibecodr is a social platform where code runs as content.
 2. A published app becomes a live vibe that people can open, run, remix, comment on, like, and share.
 3. Publishing is guided. The agent should ask only for missing launch details.
-4. Public is the default visibility unless the user asks for unlisted or private.
-5. Making something live, updating live metadata, publishing a draft, or canceling an operation requires explicit user confirmation.
+4. App/vibe publishes default to public visibility unless the user asks for unlisted or private.
+5. Standalone Pulse publishes default to private source and metadata visibility, but the deployed Pulse endpoint is still public HTTP unless the Pulse code rejects callers.
+6. Making something live, updating live metadata, publishing a draft, or canceling an operation requires explicit user confirmation.
 
 Recommended first reads:
 

@@ -138,6 +138,33 @@ export type PulseSetupGuidance = {
   accountReminder: string;
 };
 
+export type StandalonePulsePublishInput = {
+  name: string;
+  code: string;
+  descriptor?: Record<string, unknown> | undefined;
+  slug?: string | undefined;
+  visibility?: PublishVisibility | undefined;
+};
+
+export type StandalonePulseSummary = {
+  pulseId: string;
+  name: string;
+  visibility: PublishVisibility;
+  status: string;
+  deployStatus: string;
+  executeUrl?: string | undefined;
+};
+
+export type StandalonePulsePublishResult = {
+  pulse: StandalonePulseSummary;
+  deploymentStatus: string;
+  message: string;
+  warnings: string[];
+  descriptorSetup?: Record<string, unknown> | undefined;
+  publicEndpointNotice: string;
+  nextSteps: string[];
+};
+
 export type PulseDescriptorSetupTaskKind =
   | "pulse"
   | "secret"

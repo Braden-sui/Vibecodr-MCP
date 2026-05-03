@@ -122,6 +122,17 @@ function examplesForNativeTool(name: string): CapabilityExample[] | undefined {
       }
     }];
   }
+  if (name === "publish_standalone_pulse") {
+    return [{
+      title: "Publish standalone backend Pulse after explicit confirmation",
+      arguments: {
+        name: "Webhook receiver",
+        code: "export default async function POST() { return Response.json({ ok: true }); }",
+        visibility: "private",
+        confirmed: true
+      }
+    }];
+  }
   if (name === "get_runtime_readiness") {
     return [{
       title: "Check readiness from the current publish operation",
