@@ -33,6 +33,18 @@ test("failure translation keeps raw upstream details out of public summaries", (
   assert.doesNotMatch(serialized, /secret-refresh-token|refresh_token|Bearer|<html>/i);
 });
 
+test("failure translation identifies direct file upload failures separately from draft creation", () => {
+  const translated = translateFailure("INGEST_FAILED", "failed", {
+    upstreamStatus: 401,
+    upstreamPath: "/capsules/cap-1/files/src%2Fmain.tsx"
+  });
+
+  assert.match(translated.userMessage, /upload/i);
+  assert.match(translated.diagnosticMessage, /upload/i);
+  assert.match(translated.rootCauseSummary || "", /uploading files/i);
+  assert.doesNotMatch(translated.rootCauseSummary || "", /creating the draft/i);
+});
+
 test("malformed cookie encoding is ignored instead of crashing auth parsing", () => {
   assert.deepEqual(readSessionCookie("__Host-vc_session=%"), { value: undefined, legacy: false });
   assert.deepEqual(parseCookies(new Request("https://openai.vibecodr.space", {

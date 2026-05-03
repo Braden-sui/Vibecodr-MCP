@@ -111,6 +111,8 @@ Use `sourceType: "codex_v1"` for Codex-style generated projects and `sourceType:
 
 The package must include enough files to run the app. Include `entry` explicitly when the runnable file is obvious.
 
+Use normal slash-separated project paths in `payload.files[].path`, including nested paths such as `src/main.tsx` or `src/server/binding-proof.js`. Do not pre-encode path separators as `%2F`; the MCP gateway handles URL-safe encoding when it writes files to Vibecodr.
+
 Example:
 
 ```json

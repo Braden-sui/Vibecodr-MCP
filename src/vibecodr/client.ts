@@ -70,6 +70,10 @@ export function coverUsageForVisibility(visibility?: PublishVisibility): CoverUs
   return visibility === "private" ? "standalone" : "app_cover";
 }
 
+function encodePathSegments(path: string): string {
+  return path.split("/").map((segment) => encodeURIComponent(segment)).join("/");
+}
+
 export type UpstreamRequestMeta = {
   telemetry?: Telemetry | undefined;
   traceId?: string | undefined;
@@ -185,7 +189,7 @@ export class VibecodrClient {
     content: string,
     meta?: UpstreamRequestMeta
   ): Promise<void> {
-    await this.req("PUT", "/capsules/" + encodeURIComponent(capsuleId) + "/files/" + encodeURIComponent(filePath), ctx, {
+    await this.req("PUT", "/capsules/" + encodeURIComponent(capsuleId) + "/files/" + encodePathSegments(filePath), ctx, {
       headers: { "content-type": "text/plain; charset=utf-8" },
       body: content
     }, meta);

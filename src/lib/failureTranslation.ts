@@ -95,7 +95,8 @@ export function translateFailure(
   const info = normalizeFailureDetails(details);
   const compilePath = includesAny(info.upstreamPath, ["/compile-draft"]);
   const publishPath = includesAny(info.upstreamPath, ["/publish"]);
-  const importPath = includesAny(info.upstreamPath, ["/import/", "/capsules/empty", "/files/"]);
+  const fileUploadPath = includesAny(info.upstreamPath, ["/files/"]);
+  const importPath = includesAny(info.upstreamPath, ["/import/", "/capsules/empty"]);
   const combined = [info.upstreamCode, info.upstreamMessage].filter(Boolean).join(" | ");
 
   if (status === "canceled") {
@@ -162,6 +163,18 @@ export function translateFailure(
       nextActions: [
         "Retry the metadata update if the cover image or preview text still matters.",
         "Otherwise keep the launch moving with the live URL you already have."
+      ]
+    };
+  }
+
+  if (fileUploadPath) {
+    return {
+      userMessage: "Vibecodr created the draft, but could not finish uploading its files.",
+      diagnosticMessage: "Vibecodr could not finish uploading files for this launch.",
+      rootCauseSummary: upstreamRootCauseSummary(info, "uploading files"),
+      nextActions: [
+        "Ask ChatGPT to verify the uploaded file paths and retry the launch.",
+        "If the package has nested files, keep slash-separated paths such as src/main.tsx instead of encoded slash characters."
       ]
     };
   }

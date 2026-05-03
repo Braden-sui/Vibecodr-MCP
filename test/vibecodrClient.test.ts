@@ -43,6 +43,29 @@ test("uploadCover targets the requested usage lane", async () => {
   assert.equal(result.usage, "standalone");
 });
 
+test("putCapsuleFile preserves nested file path separators while encoding each segment", async () => {
+  let requestedUrl = "";
+  const client = new VibecodrClient(
+    "https://api.vibecodr.space",
+    async (input, init) => {
+      requestedUrl = String(input);
+      assert.equal(init?.method, "PUT");
+      return new Response("{}", {
+        status: 200,
+        headers: { "content-type": "application/json" }
+      });
+    }
+  );
+
+  await client.putCapsuleFile(userContext, "cap/needs encoding", "src/server/binding proof.js", "export default {};");
+
+  assert.equal(
+    new URL(requestedUrl).pathname,
+    "/capsules/cap%2Fneeds%20encoding/files/src/server/binding%20proof.js"
+  );
+  assert.doesNotMatch(requestedUrl, /src%2Fserver/i);
+});
+
 test("getAccountCapabilities no longer depends on /me/profile", async () => {
   const seenPaths: string[] = [];
   const client = new VibecodrClient(
