@@ -163,7 +163,7 @@ test("publishStandalonePulse posts to the standalone Pulse API and redacts raw d
             generatedModulePaths: ["index.js"]
           },
           descriptorSetup: {
-            setupTasks: [{ kind: "secret", name: "OPENAI_API_KEY" }],
+            setupTasks: [{ kind: "secret", name: "LLM_PROVIDER_KEY" }],
             compatibility: { blockers: [], warnings: [] }
           }
         }),
@@ -197,7 +197,7 @@ test("publishStandalonePulse posts to the standalone Pulse API and redacts raw d
   assert.equal(result.deploymentStatus, "deploying");
   assert.match(result.publicEndpointNotice, /does not add authentication/i);
   assert.equal(result.descriptorSetup && typeof result.descriptorSetup === "object", true);
-  assert.doesNotMatch(JSON.stringify(result), /internal-worker-name|wfpWorkerName|OPENAI_API_KEY.*secret true|owner-pulse-source|generatedModulePaths/);
+  assert.doesNotMatch(JSON.stringify(result), /internal-worker-name|wfpWorkerName|LLM_PROVIDER_KEY.*secret true|owner-pulse-source|generatedModulePaths/);
 });
 
 test("discoverVibes reads the homepage latest feed lane", async () => {
