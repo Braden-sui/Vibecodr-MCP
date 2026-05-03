@@ -284,7 +284,6 @@ Default `tools/list` intentionally exposes the product-level surface only:
 - `get_public_profile`
 - `search_vibecodr`
 - `get_remix_lineage`
-- `get_thread_context`
 - `build_share_copy`
 - `get_launch_checklist`
 - `inspect_social_preview`
@@ -322,6 +321,7 @@ Code Mode:
 
 - `sourceType`: `chatgpt_v1 | codex_v1`
 - `payload`: normalized creation package payload
+  - direct file payloads use normal slash-separated project paths in `payload.files[].path`; clients should not pre-encode `/` as `%2F`
 - `autoCompile`: defaults to `true`
 - `timeoutSeconds`, `pollIntervalMs`
 - publish metadata options: `visibility`, `coverKey`, `thumbnailFile`, `thumbnailUpload`, `seo`
